@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: just check
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install tooling
+        run: brew bundle --file Brewfile
+      - name: Install passalong-server v0.1.0 for the bridge's server tests
+        # The server is AGPL-3.0-or-later; it is run by the tests, never linked.
+        run: cargo install --locked --git https://github.com/joelee/passalong-server --tag v0.1.0 passalong-server
+      - name: Run every check
+        run: |
+          just check
+          PASSALONG_SERVER_BIN="$HOME/.cargo/bin/passalong-server" just test-https

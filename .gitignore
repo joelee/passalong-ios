@@ -1,0 +1,33 @@
+# Xcode: the project is generated from project.yml (`just gen`)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+*.xcresult
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Rust: build output, the generated UniFFI bindings, and the XCFramework
+rust/target/
+rust/generated/
+rust/.cargo/config.toml
+
+# Local signing and team overrides
+Local.xcconfig
+*.mobileprovision
+*.p12
+*.cer
+
+# Secrets and keys
+.env
+*.key
+
+# macOS
+.DS_Store
+
+# Logs
+*.log

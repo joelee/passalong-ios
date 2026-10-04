@@ -1,0 +1,20 @@
+# SwiftLint for passalong-ios (`just lint`). Formatting is swift-format's
+# job (`just fmt`), so the rules that only restate layout are off.
+included:
+  - PassalongKit/Sources
+  - PassalongKit/Tests
+  - App
+  - AppTests
+excluded:
+  - rust/generated
+  - PassalongKit/.build
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - line_length
+opt_in_rules:
+  - empty_count
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - sorted_imports
+  - unused_import
