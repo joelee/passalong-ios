@@ -2,7 +2,7 @@
 
 > [!note] Planned
 > The layers PLAN-00001 builds, mirroring passalong-android's
-> [architecture](https://github.com/joelee/passalong-android/blob/main/docs/architecture.md).
+> [architecture](https://github.com/joelee/passalong-android/blob/9c2bf5974630237fd4a0b28472afadc7a488c8da/docs/architecture.md).
 
 ## Layers
 

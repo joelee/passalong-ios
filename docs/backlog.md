@@ -6,7 +6,10 @@ Future work not covered by an active plan. Completed items are removed.
 
 - **Parity with passalong-android v0.2.0** (PLAN-00001, draft): the
   Rust bridge for iOS, setup for an SSH server or a passalong-server, and
-  the choose screen.
+  the choose screen. Waiting on the user's choices for D-01 (copy the
+  bridge or share one crate) and D-02 (Files-app folder or a share sheet
+  for loaded files), then approval. No iOS code exists yet; STEP-01 and
+  STEP-03 to STEP-06 need no Simulator, the rest need macOS.
 - The Android app's own next milestones, as they land there: joining an
   encrypted store, sending (a Share extension for text and files, and a
   pasteboard push), API key import from a QR code or link and *Replace

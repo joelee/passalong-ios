@@ -22,7 +22,7 @@ As on Android, the core sees the Application Support directory as
 write on a desktop, expanded under the app's storage.
 
 The setup screen fills the same fields as passalong-android's
-([its configuration doc](https://github.com/joelee/passalong-android/blob/main/docs/configuration.md)),
+([its configuration doc](https://github.com/joelee/passalong-android/blob/9c2bf5974630237fd4a0b28472afadc7a488c8da/docs/configuration.md)),
 with the device name defaulting to the device's model (`iPhone`), since
 iOS no longer reveals the user-assigned name without an entitlement.
 

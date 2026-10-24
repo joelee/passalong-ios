@@ -3,7 +3,7 @@
 > [!note] Planned
 > The app is not built yet; PLAN-00001 delivers what this page describes,
 > which follows passalong-android's
-> [usage doc](https://github.com/joelee/passalong-android/blob/main/docs/usage.md)
+> [usage doc](https://github.com/joelee/passalong-android/blob/9c2bf5974630237fd4a0b28472afadc7a488c8da/docs/usage.md)
 > screen for screen. Only the iOS differences are listed here.
 
 Prepare the server first, as passalong's README describes under
