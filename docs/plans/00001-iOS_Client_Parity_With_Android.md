@@ -25,7 +25,7 @@ previous_plan: null
 requirements_count: 9
 steps_count: 9
 acceptance_criteria_count: 14
-blocking_decisions: 2
+blocking_decisions: 0
 build_ready: false
 web_research_used: false
 confidence: medium                # high | medium | low
@@ -48,7 +48,7 @@ current_step: null
 > Build the iOS app from an empty repository to feature parity with
 > passalong-android v0.2.0 (setup for an SSH server or a passalong-server,
 > and the choose screen) over the same Rust core through a UniFFI bridge.
-> Not Builder-ready: two decisions (D-01, D-02) need the user.
+> All decisions are resolved; Builder-ready once the user approves.
 
 ## 1. Objective and outcome
 
@@ -133,10 +133,10 @@ material.
 
 | ID | Decision or blocker | Resolution | Owner | Status |
 |---|---|---|---|---|
-| D-01 | Where the bridge source lives | Recommended: copy `../passalong-android/rust/` into `rust/` and adapt it (iOS `cfg`s, crates.io 0.3.0), keeping the repo self-contained like Android's; extracting a shared crate stays on the backlog. Alternative: move it now to a shared crate both apps depend on, which touches the Android repo | User | open |
-| D-02 | Where a loaded file goes | Recommended: the app's Documents folder, visible in the Files app (*On My iPhone › Passalong*) via `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`, with the status line naming it, closest to Android's Downloads. Alternative: a share sheet / `fileExporter` on every load, asking each time where to save | User | open |
-| D-03 | Source of the core crates | `=0.3.0` from crates.io (published since Android pinned a git rev) | Planner | resolved |
-| D-04 | Logging on iOS | `oslog` 0.2.0 (safe wrapper, MIT) under `cfg(target_os = "ios")`, so the crate can `forbid(unsafe_code)` | Planner | resolved |
+| D-01 | Where the bridge source lives | Copy `../passalong-android/rust/` at `9c2bf59` into `rust/`, record that commit in `rust/Cargo.toml`, and adapt it: iOS code only in `cfg(target_vendor = "apple")` branches beside Android's, file and module names kept, doc wording platform-neutral. A separate copy is what lets the crate `forbid(unsafe_code)`; a shared crate could only `deny` it, because Android's logcat and JNI calls need `unsafe`. A shared crate stays on the backlog, triggered by Android's next change to `rust/` (STEP-09). Rejected: a shared crate now (needs its own Android plan on an unmerged branch; out of scope in §4) | User (2026-10-24) | resolved |
+| D-02 | Where a loaded file goes | The app's `Documents/`, shown in Files as *On My iPhone › Passalong* (`UIFileSharingEnabled`, `LSSupportsOpeningDocumentsInPlace`, `CFBundleDisplayName` `Passalong`). The core downloads and verifies into `Application Support/Downloads/`; `FilesSink` moves the file into `Documents/` under a free name in the core's `name (n).ext` form, never replacing a file; the staged copy is removed in `finally`, as on Android. One tap, no dialog. Success shows once as a banner (Android's snackbar): `<name> saved to Files`; sink failures read `cannot create <name> in Files` / `cannot write <name> in Files` inside the usual `cannot load <id>: …` status. Rejected: a share sheet or `fileExporter` on every load; picking a save folder once (backlog) | User (2026-10-24) | resolved |
+| D-03 | Source of the core crates | `=0.3.0` from crates.io (published since Android pinned a git rev; the core crates are identical between Android's rev `9ed0d4d` and the `v0.3.0` tag `ec99f50`) | Planner | resolved |
+| D-04 | Logging on iOS | `oslog` 0.2.0 (safe wrapper, MIT, `default-features = false`) under `cfg(target_vendor = "apple")`, so the crate can `forbid(unsafe_code)` | Planner | resolved |
 | D-05 | Simulator slices | `aarch64-apple-ios-sim` only (Apple Silicon); x86_64 on the backlog | Planner | resolved |
 | D-06 | Swift formatter and linter | `swift format` from the toolchain; SwiftLint | Planner | resolved |
 
@@ -309,36 +309,50 @@ need the Mac.
   the host.
 - **Requirements:** `PLAN-00001-REQ-01`, `PLAN-00001-REQ-06`,
   `PLAN-00001-REQ-08`
-- **Depends on:** D-01 resolved.
+- **Depends on:** None (D-01: copy).
 - **Affected components:** `rust/Cargo.toml`, `rust/Cargo.lock`,
-  `rust/uniffi.toml`, `rust/src/*.rs`, `rust/tests/`.
+  `rust/uniffi.toml`, `rust/src/*.rs`, `rust/tests/`,
+  `scripts/bridge-drift.sh`.
 - **Preconditions:** clean tree on `feature/00001-ios-parity`.
 - **Test or evidence first:** copy Android's `rust/tests/` and the unit
   tests inside `rust/src/`; add a test that `init_logging` accepts every
   level once on a non-Apple host; run `cargo test` and see it fail until
   the crate builds.
 - **Implementation tasks:**
-  1. Copy `../passalong-android/rust/{Cargo.toml,src,tests,uniffi.toml}`
-     (per D-01); set `repository`, `description`, `version = "0.1.0"`.
+  1. Copy `../passalong-android/rust/{Cargo.toml,Cargo.lock,src,tests,uniffi.toml}`
+     at `9c2bf59` (per D-01); set `repository`, `description`,
+     `version = "0.1.0"`, and a comment `ported from passalong-android
+     rust/ @ 9c2bf59`. Keep file and module names.
   2. Replace the three git dependencies with `version = "=0.3.0"`.
   3. Delete `android_tls.rs` and its `mod`; drop the Android target
      dependencies.
   4. `crate-type = ["staticlib", "cdylib", "lib"]` (static for iOS,
      cdylib for the host bindgen); `unsafe_code = "forbid"`.
   5. In `logging.rs`, replace the logcat `emit` with an `oslog::OsLog`
-     writer under `cfg(any(target_os = "ios", target_os = "macos"))`,
-     mapping the syslog-like priorities to `OsLogLevel`; standard error
-     elsewhere.
+     writer under `cfg(target_vendor = "apple")` (`oslog` with
+     `default-features = false`), mapping the syslog-like priorities to
+     `OsLogLevel`; standard error under `cfg(not(target_vendor =
+     "apple"))`.
   6. `uniffi.toml`: `[bindings.swift] module_name = "PassalongFFI"`,
-     `ffi_module_name = "passalong_ffiFFI"`.
-  7. `cargo update` to resolve the lockfile; commit it.
+     `ffi_module_name = "passalong_ffiFFI"` (both keys exist in
+     uniffi_bindgen 0.29.5).
+  7. Starting from Android's `Cargo.lock`, `cargo update -p
+     passalong-core -p passalong-ssh -p passalong-https` only, so the
+     transitive versions stay Android's; commit it.
+  8. Reword Kotlin- or Android-specific rustdoc (e.g. `lib.rs` "Kotlin
+     `suspend`") in platform-neutral terms, since it reaches the Swift
+     bindings.
+  9. `scripts/bridge-drift.sh`: diff `rust/src` and the exported symbol
+     list against `../passalong-android/rust/` at the recorded commit
+     (exports must equal Android's minus the JNI entry point), and
+     compare the two lockfiles' versions; rerun at every Android port.
 - **Documentation/configuration/operations:** none yet (STEP-09).
 - **Verification:** `cargo fmt --check`, `cargo clippy --all-targets
   --all-features -- -D warnings`, `cargo test --all-features` on Linux or
   macOS; `PASSALONG_SERVER_BIN=… just test-https`;
   `cargo check --target aarch64-apple-ios` on macOS.
-- **Completion criteria:** all pass; export list equals Android's minus
-  the JNI entry point.
+- **Completion criteria:** all pass; `scripts/bridge-drift.sh` shows the
+  export list equals Android's minus the JNI entry point.
 - **Rollback or recovery:** revert the step's commit.
 - **Builder stop conditions:** 0.3.0 from crates.io changes behaviour
   Android's tests pin (the git rev differed): record the failing tests
@@ -426,8 +440,16 @@ need the Mac.
   1. Port `core/Core.kt` (protocols `Sendable`; `async throws`).
   2. Port `AppFiles` over a home `URL`; writes are atomic and set file
      protection and the backup exclusion through an injectable hook.
-  3. Port `ItemActions`; the files sink publishes into the D-02
-     destination with a numbered name when taken.
+  3. Port `ItemActions` (stage, publish, delete the staged copy in
+     `defer`, as Android's `finally`).
+  4. `FilesSink` protocol plus a `DocumentsFilesSink` in PassalongKit
+     (D-02): moves the staged file into a documents directory under a
+     free name (`report.pdf`, `report (1).pdf`, … in the core's form),
+     never replacing a file, and returns the name used. Tested against a
+     temporary folder with its own never-replace and numbering cases
+     (Android's `ItemActionsTest` numbering only exercises its fake).
+     Loads cannot race because the controller's busy gate serialises
+     them; note that in its DocC.
 - **Documentation/configuration/operations:** none.
 - **Verification:** `just test`, `just coverage`.
 - **Completion criteria:** ported cases pass; coverage >= 80 %.
@@ -494,19 +516,24 @@ need the Mac.
 - **Implementation tasks:**
   1. `FfiCore`: implement `Core` over the bindings, mapping
      `PassalongError` to `CoreError`; the only bindings importer.
-  2. Sinks: `UIPasteboard` text; files moved from staging into the D-02
-     destination.
-  3. `AppContainer`: Application Support as `HOME`, backup exclusion,
+  2. Sinks: `UIPasteboard` text; `DocumentsFilesSink` over the app's
+     `Documents/` URL (no logic in `App/` beyond the paths).
+  3. `AppContainer`: Application Support as `HOME`, backup exclusion set
+     on the Application Support directory itself, never on staged files
+     (a per-file flag would travel with a moved file into Documents),
      `init_logging` (`debug`/`info` by build configuration), device name
      from the model identifier.
   4. SwiftUI: `RootView` switching setup/choose; `SetupView` (server-kind
      picker, forms, `SecureField` for the API key, confirmation dialogs);
      `ChooseView` (`List`, `.searchable`, `.refreshable`, `contextMenu`,
      toolbar `Menu` with *Read from the server*, *Help*, *Set up again*;
-     content and details sheets; delete confirmation; bottom status bar).
+     content and details sheets; delete confirmation; bottom status bar;
+     the controller's one-time message as a short banner over the list,
+     as Android's snackbar).
      Accessibility labels on icon-only buttons; Dynamic Type respected.
 - **Documentation/configuration/operations:** Info.plist keys in
-  `project.yml`.
+  `project.yml`: `UIFileSharingEnabled`, `LSSupportsOpeningDocumentsInPlace`
+  (both `YES`), `CFBundleDisplayName` `Passalong`.
 - **Verification:** `just check`; manual run on the Simulator against a
   local passalong-server, every row of `docs/usage.md` § Choose
   exercised.
@@ -554,8 +581,31 @@ need the Mac.
   1. Remove the "Planned" notes; describe what exists; record D-01 and
      D-02 outcomes.
   2. CHANGELOG `Unreleased`: the app, with PLAN-00001 references.
-  3. Backlog: remove the parity milestone; add follow-ups found.
-  4. Adjust CI if the Xcode or Simulator name differs on `macos-15`.
+  3. Backlog: remove the parity milestone and the D-01/D-02 wait; add
+     follow-ups found, and these from D-01 and D-02:
+     - *One bridge crate for both apps*: when Android next changes
+       `rust/` or both apps build on `main`, plan the extraction in both
+       repos (a new `passalong-ffi` repo, thin wrapper crates, one
+       `uniffi.toml` with Kotlin and Swift sections, macOS CI for the
+       Apple branch); `forbid(unsafe_code)` becomes `deny` then, so
+       REQ-01/AC-01 are restated. Until then every Android port starts
+       with `scripts/bridge-drift.sh`.
+     - *Save folder*: pick a folder once (security-scoped bookmark), e.g.
+       iCloud Drive › Downloads, so saved files outlive the app.
+     - *Share or preview a loaded file* from the banner or long-press
+       menu (iOS extra; offer to Android).
+     - *Clipboard images to the pasteboard*, after Android's backlog item.
+     - *Check the free-name rule* against passalong-core's
+       `download_into` for names with no or several extensions.
+  4. `docs/architecture.md` § Differences from Android: core from
+     crates.io, not git; "the same source", not "the same crate"; Android's
+     JNI call is `init_with_env`; Documents numbered by `FilesSink`; saved
+     files are deleted with the app and are backed up (Application
+     Support is not); `saved to Files` for `saved to Downloads`; banner
+     for snackbar. `docs/usage.md`: "under a numbered name if theirs is
+     taken"; "clipboard", not "pasteboard"; help line "files to the Files
+     app (On My iPhone › Passalong)".
+  5. Adjust CI if the Xcode or Simulator name differs on `macos-15`.
 - **Documentation/configuration/operations:** as above.
 - **Verification:** `just check`; CI green after the user pushes.
 - **Completion criteria:** AC-13, AC-14.
@@ -599,8 +649,8 @@ need the Mac.
 - [ ] `PLAN-00001-AC-04` `just coverage` prints a PassalongKit line coverage of 80 % or more, and every test case in Android's `app/src/test/` has a named Swift counterpart.
 - [ ] `PLAN-00001-AC-05` On the Simulator, setup against an SSH server shows the device's public key and the host-key fingerprint prompt, writes `config.toml` only after *Yes, pin it*, and the choose screen then lists the store's items.
 - [ ] `PLAN-00001-AC-06` On the Simulator, setup against a self-signed passalong-server refuses `http://`, refuses a wrong pin (stopping after three), accepts the right pin and key, shows `connected to passalong-server …`, asks the "not encrypted" question, and writes nothing when any step is declined.
-- [ ] `PLAN-00001-AC-07` On the choose screen, tapping a text item puts its text on the pasteboard; tapping a file saves a verified copy at the D-02 destination; long press offers *Load*, *Show content*, *Details*, *Delete*; *Delete* asks first and refreshes the list.
-- [ ] `PLAN-00001-AC-08` After setup, Application Support holds `config.toml`, `keys/id_ed25519{,.pub}` or `api.key`, all marked excluded from backup; `config.toml` contains no API key.
+- [ ] `PLAN-00001-AC-07` On the choose screen, tapping a text item puts its text on the pasteboard; tapping a file saves a verified copy in `Documents/` (Files, *On My iPhone › Passalong*), numbered when the name is taken, and shows `<name> saved to Files`; long press offers *Load*, *Show content*, *Details*, *Delete*; *Delete* asks first and refreshes the list.
+- [ ] `PLAN-00001-AC-08` After setup, Application Support holds `config.toml`, `keys/id_ed25519{,.pub}` or `api.key`, all excluded from backup through the directory's flag; a file saved into `Documents/` is not excluded; `config.toml` contains no API key.
 - [ ] `PLAN-00001-AC-09` `log stream --predicate 'subsystem == "io.github.joelee.passalong"'` shows core records during a list, and none contains item text or a key.
 - [ ] `PLAN-00001-AC-10` `NativeTlsTests` passes: a publicly trusted host probes as trusted; the self-signed test server probes as untrusted with its pin.
 - [ ] `PLAN-00001-AC-11` `ServerFlowTests` passes with server arguments and skips without them.
@@ -619,6 +669,9 @@ need the Mac.
 | Simulator cannot reach a host server or trust settings differ | Low | Medium | `127.0.0.1` from the Simulator; tests skip without args | STEP-08 |
 | Ported controllers drift from Android over time | Medium | Medium | Port tests verbatim; AGENTS.md parity rule; shared-crate backlog | STEP-03–06 |
 | Static library size bloats the app | Medium | Low | Release profile `strip`, `lto = "thin"` as Android | STEP-01 |
+| The copied bridge drifts from Android's (D-01) | High | Medium | Recorded source commit; `scripts/bridge-drift.sh` at every port; shared-crate backlog item with a trigger | STEP-01, STEP-09 |
+| Saved files are deleted with the app, unlike Android's Downloads (D-02) | Certain | Low | Recorded in `docs/architecture.md`; only saved files go to `Documents/`; save-folder backlog item | STEP-09 |
+| A backup-exclusion flag travels with a moved file into `Documents/` | Medium | Medium | Exclusion set on the Application Support directory only; AC-08 checks a saved file is not excluded | STEP-07 |
 
 ## 16. Builder hand-off
 
@@ -692,6 +745,7 @@ None
 | Timestamp (UTC) | Plan status | Change | Reason | Requested/approved by |
 |---|---|---|---|---|
 | 2026-10-04T11:09:24Z | draft | Initial draft | Bootstrap the iOS app to Android parity | User |
+| 2026-10-24T15:31:21Z | draft | D-01 resolved (copy the bridge at `9c2bf59`, Apple `cfg` branches, Android's lockfile, drift script); D-02 resolved (Documents in Files, `saved to Files`, banner; free-name logic in PassalongKit); D-04 `cfg` set to `target_vendor = "apple"`; STEP-01, -04, -07, -09, AC-07, AC-08 and risks amended to match; `blocking_decisions` 0 | Investigation and adversarial review of both decisions; draft wrongly put Android's success message in the status line (it is a snackbar) | User |
 
 ## 19. External references
 
@@ -702,8 +756,11 @@ against crates.io on 2026-10-04; no web pages were relied on.
 
 **Medium.** The Android reference, its bridge, and its tests were read
 directly, and the core's crates.io release and its `ring`-only crypto
-were checked, so the porting path is well grounded. Nothing has been
-compiled for iOS yet. The main uncertainties are how UniFFI's Swift
+were checked, so the porting path is well grounded; the core crates were
+confirmed identical between Android's rev and the `v0.3.0` tag, and a
+scratch crate with uniffi 0.29.5 and `oslog` compiled under
+`forbid(unsafe_code)` on the macOS host. Nothing has been compiled for
+iOS yet. The main uncertainties are how UniFFI's Swift
 output behaves under Swift 6 strict concurrency, and how Xcode's build
 integration handles the static library, both of which surface in
 STEP-02.
